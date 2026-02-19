@@ -90,6 +90,28 @@ print_status() {
     fi
 }
 
+# One-line version display: NAME  current → latest  STATUS
+print_version_line() {
+    local name="$1" current="$2" latest="$3" width=24
+    local pad=$(printf "%-${width}s" "$name")
+    if [ -z "$current" ]; then
+        echo -e "  ${BOLD}${pad}${NC} ${DIM}not found${NC}"
+        return 3
+    elif [ -z "$latest" ]; then
+        echo -e "  ${BOLD}${pad}${NC} ${GREEN}${current}${NC}  ${DIM}(could not fetch latest)${NC}"
+        return 3
+    else
+        version_compare "$current" "$latest"
+        local result=$?
+        case $result in
+            0) echo -e "  ${BOLD}${pad}${NC} ${GREEN}${current}${NC}  ${GREEN}✓${NC}" ;;
+            1) echo -e "  ${BOLD}${pad}${NC} ${GREEN}${current}${NC}  ${CYAN}ahead${NC}" ;;
+            2) echo -e "  ${BOLD}${pad}${NC} ${YELLOW}${current}${NC} → ${GREEN}${latest}${NC}  ${RED}✗${NC}" ;;
+        esac
+        return $result
+    fi
+}
+
 # Helper: print a passing check
 pass_check() {
     echo -e "  ${GREEN}✓${NC} $1"
@@ -130,18 +152,7 @@ echo ""
 wsl_current=$(/mnt/c/Windows/System32/wsl.exe --version 2>/dev/null | head -1 | tr -d '\r\0' | awk '{print $NF}' | sed 's/\(.*\)\.0$/\1/')
 wsl_latest=$(fetch_latest_prerelease "microsoft/WSL")
 
-echo -e "  ${BOLD}WSL Preview${NC}"
-if [ -n "$wsl_current" ]; then
-    echo -e "    Installed : ${GREEN}${wsl_current}${NC}"
-fi
-if [ -n "$wsl_latest" ]; then
-    echo -e "    Latest    : ${YELLOW}${wsl_latest}${NC}"
-    print_status "$wsl_current" "$wsl_latest"
-else
-    echo -e "    ${DIM}Could not fetch latest${NC}"
-fi
-
-echo ""
+print_version_line "WSL Preview" "$wsl_current" "$wsl_latest"
 
 # --- Windows Terminal Canary ---
 term_current=$(PATH="/mnt/c/Windows/System32/WindowsPowerShell/v1.0:$PATH" \
@@ -157,40 +168,18 @@ if m:
     parts[0] = '1'
     print('.'.join(parts))" 2>/dev/null)
 
-echo -e "  ${BOLD}Windows Terminal Canary${NC}"
-if [ -n "$term_current" ]; then
-    echo -e "    Installed : ${GREEN}${term_current}${NC}"
-fi
-if [ -n "$term_latest" ]; then
-    echo -e "    Latest    : ${YELLOW}${term_latest}${NC}"
-    print_status "$term_current" "$term_latest"
-else
-    echo -e "    ${DIM}Could not fetch latest${NC}"
-fi
-
-echo ""
+print_version_line "Terminal Canary" "$term_current" "$term_latest"
 
 # --- Claude Code ---
 claude_current=$(claude --version 2>/dev/null | awk '{print $1}')
 claude_latest=$(curl -sf "https://registry.npmjs.org/@anthropic-ai/claude-code/latest" | \
     python3 -c "import sys,json; print(json.load(sys.stdin)['version'])" 2>/dev/null)
 
-echo -e "  ${BOLD}Claude Code${NC}"
-if [ -n "$claude_current" ]; then
-    echo -e "    Installed : ${GREEN}${claude_current}${NC}"
+print_version_line "Claude Code" "$claude_current" "$claude_latest"
+if [ $? -eq 2 ]; then
+    UPDATE_LABELS+=("Claude Code ${claude_current} → ${claude_latest}")
+    UPDATE_CMDS+=("npm install -g @anthropic-ai/claude-code@latest")
 fi
-if [ -n "$claude_latest" ]; then
-    echo -e "    Latest    : ${YELLOW}${claude_latest}${NC}"
-    print_status "$claude_current" "$claude_latest"
-    if [ $? -eq 2 ]; then
-        UPDATE_LABELS+=("Claude Code ${claude_current} → ${claude_latest}")
-        UPDATE_CMDS+=("npm install -g @anthropic-ai/claude-code@latest")
-    fi
-else
-    echo -e "    ${DIM}Could not fetch latest${NC}"
-fi
-
-echo ""
 
 # --- Node.js ---
 node_current=$(node --version 2>/dev/null | sed 's/^v//')
@@ -204,40 +193,18 @@ try:
             break
 except: pass" 2>/dev/null)
 
-echo -e "  ${BOLD}Node.js (LTS)${NC}"
-if [ -n "$node_current" ]; then
-    echo -e "    Installed : ${GREEN}${node_current}${NC}"
-fi
-if [ -n "$node_latest" ]; then
-    echo -e "    Latest    : ${YELLOW}${node_latest}${NC}"
-    print_status "$node_current" "$node_latest"
-else
-    echo -e "    ${DIM}Could not fetch latest${NC}"
-fi
-
-echo ""
+print_version_line "Node.js (LTS)" "$node_current" "$node_latest"
 
 # --- npm ---
 npm_current=$(npm --version 2>/dev/null)
 npm_latest=$(curl -sf "https://registry.npmjs.org/npm/latest" | \
     python3 -c "import sys,json; print(json.load(sys.stdin)['version'])" 2>/dev/null)
 
-echo -e "  ${BOLD}npm${NC}"
-if [ -n "$npm_current" ]; then
-    echo -e "    Installed : ${GREEN}${npm_current}${NC}"
+print_version_line "npm" "$npm_current" "$npm_latest"
+if [ $? -eq 2 ]; then
+    UPDATE_LABELS+=("npm ${npm_current} → ${npm_latest}")
+    UPDATE_CMDS+=("npm install -g npm@latest")
 fi
-if [ -n "$npm_latest" ]; then
-    echo -e "    Latest    : ${YELLOW}${npm_latest}${NC}"
-    print_status "$npm_current" "$npm_latest"
-    if [ $? -eq 2 ]; then
-        UPDATE_LABELS+=("npm ${npm_current} → ${npm_latest}")
-        UPDATE_CMDS+=("npm install -g npm@latest")
-    fi
-else
-    echo -e "    ${DIM}Could not fetch latest${NC}"
-fi
-
-echo ""
 
 # --- Git ---
 git_current=$(git --version 2>/dev/null | awk '{print $3}')
@@ -252,22 +219,11 @@ try:
             break
 except: pass" 2>/dev/null)
 
-echo -e "  ${BOLD}Git${NC}"
-if [ -n "$git_current" ]; then
-    echo -e "    Installed : ${GREEN}${git_current}${NC}"
+print_version_line "Git" "$git_current" "$git_latest"
+if [ $? -eq 2 ]; then
+    UPDATE_LABELS+=("Git ${git_current} → ${git_latest}")
+    UPDATE_CMDS+=("sudo add-apt-repository -y ppa:git-core/ppa && sudo apt-get update -y && sudo apt-get install -y git")
 fi
-if [ -n "$git_latest" ]; then
-    echo -e "    Latest    : ${YELLOW}${git_latest}${NC}"
-    print_status "$git_current" "$git_latest"
-    if [ $? -eq 2 ]; then
-        UPDATE_LABELS+=("Git ${git_current} → ${git_latest}")
-        UPDATE_CMDS+=("sudo add-apt-repository -y ppa:git-core/ppa && sudo apt-get update -y && sudo apt-get install -y git")
-    fi
-else
-    echo -e "    ${DIM}Could not fetch latest${NC}"
-fi
-
-echo ""
 
 # --- Python ---
 python_current=$(python3 --version 2>/dev/null | awk '{print $2}')
@@ -282,20 +238,11 @@ try:
             break
 except: pass" 2>/dev/null)
 
-echo -e "  ${BOLD}Python${NC}"
-if [ -n "$python_current" ]; then
-    echo -e "    Installed : ${GREEN}${python_current}${NC}"
-fi
-if [ -n "$python_latest" ]; then
-    echo -e "    Latest    : ${YELLOW}${python_latest}${NC}"
-    print_status "$python_current" "$python_latest"
-    if [ $? -eq 2 ]; then
-        UPDATE_LABELS+=("Python ${python_current} → ${python_latest}")
-        py_minor=$(echo "$python_latest" | cut -d. -f1-2)
-        UPDATE_CMDS+=("sudo add-apt-repository -y ppa:deadsnakes/ppa && sudo apt-get update -y && sudo apt-get install -y python${py_minor} && sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${py_minor} 2")
-    fi
-else
-    echo -e "    ${DIM}Could not fetch latest${NC}"
+print_version_line "Python" "$python_current" "$python_latest"
+if [ $? -eq 2 ]; then
+    UPDATE_LABELS+=("Python ${python_current} → ${python_latest}")
+    py_minor=$(echo "$python_latest" | cut -d. -f1-2)
+    UPDATE_CMDS+=("sudo add-apt-repository -y ppa:deadsnakes/ppa && sudo apt-get update -y && sudo apt-get install -y python${py_minor} && sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${py_minor} 2")
 fi
 
 echo ""
