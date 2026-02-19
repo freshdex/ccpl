@@ -261,7 +261,7 @@ if [ -n "$git_latest" ]; then
     print_status "$git_current" "$git_latest"
     if [ $? -eq 2 ]; then
         UPDATE_LABELS+=("Git ${git_current} → ${git_latest}")
-        UPDATE_CMDS+=("sudo apt-get install -y --only-upgrade git")
+        UPDATE_CMDS+=("sudo add-apt-repository -y ppa:git-core/ppa && sudo apt-get update -y && sudo apt-get install -y git")
     fi
 else
     echo -e "    ${DIM}Could not fetch latest${NC}"
@@ -291,7 +291,8 @@ if [ -n "$python_latest" ]; then
     print_status "$python_current" "$python_latest"
     if [ $? -eq 2 ]; then
         UPDATE_LABELS+=("Python ${python_current} → ${python_latest}")
-        UPDATE_CMDS+=("sudo apt-get install -y --only-upgrade python3")
+        py_minor=$(echo "$python_latest" | cut -d. -f1-2)
+        UPDATE_CMDS+=("sudo add-apt-repository -y ppa:deadsnakes/ppa && sudo apt-get update -y && sudo apt-get install -y python${py_minor} && sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${py_minor} 2")
     fi
 else
     echo -e "    ${DIM}Could not fetch latest${NC}"
