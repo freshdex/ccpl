@@ -1,8 +1,8 @@
 #!/bin/bash
-# CCPL - Claude Code Project Loader
+# PulseLauncher - Claude Code Project Loader
 # Bleeding edge update checker, environment health, & package updater
 
-CCPL_VERSION="2.1.0"
+PL_VERSION="2.1.0"
 
 BOLD='\033[1m'
 DIM='\033[2m'
@@ -21,8 +21,8 @@ FIX_CMDS=()
 # ║            Rotating Debug Log            ║
 # ╚══════════════════════════════════════════╝
 
-LOG_DIR="$HOME/.local/share/ccpl"
-LOG_FILE="$LOG_DIR/ccpl.log"
+LOG_DIR="$HOME/.local/share/pulselauncher"
+LOG_FILE="$LOG_DIR/pulselauncher.log"
 LOG_MAX_SIZE=102400  # 100 KB
 LOG_KEEP=3           # number of rotated files to keep
 
@@ -45,12 +45,12 @@ fi
 exec > >(tee >(sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
 
 # Run header
-echo "═══ CCPL run: $(date '+%Y-%m-%d %H:%M:%S') ═══"
+echo "═══ PulseLauncher run: $(date '+%Y-%m-%d %H:%M:%S') ═══"
 
 # Detect Windows username for cross-filesystem checks
-_ccpl_win_user=$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
-if [ -z "$_ccpl_win_user" ]; then
-    _ccpl_win_user=$(wslvar USERNAME 2>/dev/null)
+_pl_win_user=$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+if [ -z "$_pl_win_user" ]; then
+    _pl_win_user=$(wslvar USERNAME 2>/dev/null)
 fi
 
 # Compare two dotted version strings: returns 0 if equal, 1 if a>b, 2 if a<b
@@ -136,13 +136,13 @@ fail_check() {
 # ╚══════════════════════════════════════════╝
 
 echo ""
-echo -e "${CYAN}${BOLD}   ██████╗ ██████╗██████╗ ██╗     ${NC}"
-echo -e "${CYAN}${BOLD}  ██╔════╝██╔════╝██╔══██╗██║     ${NC}"
-echo -e "${CYAN}${BOLD}  ██║     ██║     ██████╔╝██║     ${NC}"
-echo -e "${CYAN}${BOLD}  ██║     ██║     ██╔═══╝ ██║     ${NC}"
-echo -e "${CYAN}${BOLD}  ╚██████╗╚██████╗██║     ███████╗${NC}"
-echo -e "${CYAN}${BOLD}   ╚═════╝ ╚═════╝╚═╝     ╚══════╝${NC}"
-echo -e "${DIM}  Claude Code Project Loader v${CCPL_VERSION}${NC}"
+echo -e "${CYAN}${BOLD}  ██████╗ ██╗   ██╗██╗     ███████╗███████╗${NC}"
+echo -e "${CYAN}${BOLD}  ██╔══██╗██║   ██║██║     ██╔════╝██╔════╝${NC}"
+echo -e "${CYAN}${BOLD}  ██████╔╝██║   ██║██║     ███████╗█████╗  ${NC}"
+echo -e "${CYAN}${BOLD}  ██╔═══╝ ██║   ██║██║     ╚════██║██╔══╝  ${NC}"
+echo -e "${CYAN}${BOLD}  ██║     ╚██████╔╝███████╗███████║███████╗${NC}"
+echo -e "${CYAN}${BOLD}  ╚═╝      ╚═════╝ ╚══════╝╚══════╝╚══════╝${NC}"
+echo -e "${DIM}  PulseLauncher v${PL_VERSION}${NC}"
 echo ""
 
 # ╔══════════════════════════════════════════╗
@@ -152,15 +152,15 @@ echo ""
 echo -e "${CYAN}${BOLD}  ── Version Checks ──────────────${NC}"
 echo ""
 
-# --- CCPL ---
-ccpl_current="$CCPL_VERSION"
-ccpl_latest=$(curl -sf "https://raw.githubusercontent.com/freshdex/ccpl/main/ccpl.sh" | \
-    grep -m1 '^CCPL_VERSION=' | sed 's/CCPL_VERSION="//' | sed 's/"//')
+# --- PulseLauncher ---
+pl_current="$PL_VERSION"
+pl_latest=$(curl -sf "https://raw.githubusercontent.com/freshdex/PulseLauncher/main/pulselauncher.sh" | \
+    grep -m1 '^PL_VERSION=' | sed 's/PL_VERSION="//' | sed 's/"//')
 
-print_version_line "CCPL" "$ccpl_current" "$ccpl_latest"
+print_version_line "PulseLauncher" "$pl_current" "$pl_latest"
 if [ $? -eq 2 ]; then
-    UPDATE_LABELS+=("CCPL ${ccpl_current} → ${ccpl_latest}")
-    UPDATE_CMDS+=("curl -fsSL https://raw.githubusercontent.com/freshdex/ccpl/main/install.sh | bash")
+    UPDATE_LABELS+=("PulseLauncher ${pl_current} → ${pl_latest}")
+    UPDATE_CMDS+=("curl -fsSL https://raw.githubusercontent.com/freshdex/PulseLauncher/main/install.sh | bash")
 fi
 
 # --- Ubuntu LTS ---
@@ -306,12 +306,12 @@ else
 fi
 
 # --- WSL Memory (.wslconfig) ---
-if [ -n "$_ccpl_win_user" ] && [ -f "/mnt/c/Users/${_ccpl_win_user}/.wslconfig" ]; then
+if [ -n "$_pl_win_user" ] && [ -f "/mnt/c/Users/${_pl_win_user}/.wslconfig" ]; then
     pass_check ".wslconfig exists"
 else
     warn_check ".wslconfig missing — WSL defaults to 50% RAM, no swap cap"
     FIX_LABELS+=("Create default .wslconfig (8GB RAM, 4GB swap, systemd)")
-    FIX_CMDS+=("printf '[wsl2]\nmemory=8GB\nswap=4GB\n\n[boot]\nsystemd=true\n' > /mnt/c/Users/${_ccpl_win_user}/.wslconfig")
+    FIX_CMDS+=("printf '[wsl2]\nmemory=8GB\nswap=4GB\n\n[boot]\nsystemd=true\n' > /mnt/c/Users/${_pl_win_user}/.wslconfig")
 fi
 
 # --- Systemd ---

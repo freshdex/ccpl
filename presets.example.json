@@ -1,0 +1,5 @@
+[
+  { "name": "My WSL Project",  "type": "wsl",        "distro": "Ubuntu",       "dir": "~/projects/myproject", "command": "claude" },
+  { "name": "Work Ubuntu",     "type": "wsl",        "distro": "Ubuntu-22.04", "dir": "~/work",               "command": "" },
+  { "name": "PowerShell Core", "type": "wt-profile", "profile": "PowerShell" }
+]

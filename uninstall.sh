@@ -1,5 +1,5 @@
 #!/bin/bash
-# CCPL Uninstaller — https://github.com/freshdex/ccpl
+# PulseLauncher Uninstaller — https://github.com/freshdex/PulseLauncher
 set -e
 
 BOLD='\033[1m'
@@ -8,10 +8,10 @@ YELLOW='\033[33m'
 NC='\033[0m'
 
 INSTALL_DIR="$HOME/.local/bin"
-BIN_NAME="ccpl"
+BIN_NAME="pulselauncher"
 
 echo ""
-echo -e "${BOLD}CCPL Uninstaller${NC}"
+echo -e "${BOLD}PulseLauncher Uninstaller${NC}"
 echo ""
 
 # --- Remove binary ---
@@ -23,5 +23,5 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}Done!${NC} CCPL has been uninstalled."
+echo -e "${GREEN}Done!${NC} PulseLauncher has been uninstalled."
 echo ""
