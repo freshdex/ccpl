@@ -52,20 +52,21 @@ fi
 chmod +x "$INSTALL_DIR/$BIN_NAME"
 echo -e "${GREEN}✓${NC} Installed to $INSTALL_DIR/$BIN_NAME"
 
-# --- Check PATH ---
-if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
-    if ! grep -qF '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
-        printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.bashrc"
-    fi
+# --- Ensure ~/.local/bin is in PATH for future shells ---
+# Check .bashrc content, not the current session PATH (which may already
+# include it via a login shell even if .bashrc hasn't been written yet)
+if ! grep -qF '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
+    printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.bashrc"
     echo -e "${GREEN}✓${NC} Added $INSTALL_DIR to PATH in ~/.bashrc"
 fi
 
 echo ""
-echo -e "${GREEN}Done!${NC} Run ${BOLD}pulselauncher${NC} from WSL, or ${BOLD}wsl pulselauncher${NC} from PowerShell."
+echo -e "${GREEN}Done!${NC} Open a new WSL tab and run ${BOLD}pulselauncher${NC}."
 
 # --- Optional: Windows PowerShell launcher ---
 _win_user=$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
 [ -z "$_win_user" ] && _win_user=$(wslvar USERNAME 2>/dev/null)
+[ -z "$_win_user" ] && _win_user=$(ls /mnt/c/Users/ 2>/dev/null | grep -Ev '^(Public|Default|Default User|All Users)$' | head -1)
 if [ -n "$_win_user" ]; then
     _win_pl_dir="/mnt/c/Users/${_win_user}/.pulselauncher"
 
