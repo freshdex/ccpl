@@ -65,6 +65,7 @@ echo -e "${GREEN}Done!${NC} Open a new WSL tab and run ${BOLD}pulselauncher${NC}
 
 # --- Optional: Windows PowerShell launcher ---
 _win_user=$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+[ -z "$_win_user" ] && _win_user=$(/mnt/c/Windows/System32/cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
 [ -z "$_win_user" ] && _win_user=$(wslvar USERNAME 2>/dev/null)
 [ -z "$_win_user" ] && _win_user=$(ls /mnt/c/Users/ 2>/dev/null | grep -Ev '^(Public|Default|Default User|All Users)$' | head -1)
 if [ -n "$_win_user" ]; then

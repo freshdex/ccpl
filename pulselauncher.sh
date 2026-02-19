@@ -49,9 +49,9 @@ echo "═══ PulseLauncher run: $(date '+%Y-%m-%d %H:%M:%S') ═══"
 
 # Detect Windows username for cross-filesystem checks
 _pl_win_user=$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
-if [ -z "$_pl_win_user" ]; then
-    _pl_win_user=$(wslvar USERNAME 2>/dev/null)
-fi
+[ -z "$_pl_win_user" ] && _pl_win_user=$(/mnt/c/Windows/System32/cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+[ -z "$_pl_win_user" ] && _pl_win_user=$(wslvar USERNAME 2>/dev/null)
+[ -z "$_pl_win_user" ] && _pl_win_user=$(ls /mnt/c/Users/ 2>/dev/null | grep -Ev '^(Public|Default|Default User|All Users)$' | head -1)
 
 # Compare two dotted version strings: returns 0 if equal, 1 if a>b, 2 if a<b
 version_compare() {
