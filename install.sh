@@ -63,22 +63,21 @@ if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
 fi
 
 echo ""
-echo -e "${GREEN}Done!${NC} Run ${BOLD}pulselauncher${NC} to launch."
+echo -e "${GREEN}Done!${NC} Run ${BOLD}pulselauncher${NC} from WSL, or ${BOLD}wsl pulselauncher${NC} from PowerShell."
 
 # --- Optional: Windows PowerShell launcher ---
 _win_user=$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
 [ -z "$_win_user" ] && _win_user=$(wslvar USERNAME 2>/dev/null)
 if [ -n "$_win_user" ]; then
     _win_pl_dir="/mnt/c/Users/${_win_user}/.pulselauncher"
-    echo -ne "\n  Install Windows PowerShell launcher to %USERPROFILE%\\.pulselauncher? [y/N]: "
-    read -r _ps_choice
-    if [ "$_ps_choice" = "y" ] || [ "$_ps_choice" = "Y" ]; then
+
+    _install_ps1() {
         if [ -f "$SCRIPT_DIR/pulselauncher.ps1" ]; then
             _ps1_src="$SCRIPT_DIR/pulselauncher.ps1"
         else
             _ps1_tmp=$(mktemp /tmp/pl_ps1.XXXXXX)
             curl -fsSL "https://raw.githubusercontent.com/freshdex/PulseLauncher/main/pulselauncher.ps1" \
-                -o "$_ps1_tmp" || { echo "Download failed"; rm -f "$_ps1_tmp"; exit 0; }
+                -o "$_ps1_tmp" || { echo "Download failed"; rm -f "$_ps1_tmp"; return 1; }
             _ps1_src="$_ps1_tmp"
         fi
         mkdir -p "$_win_pl_dir"
@@ -87,6 +86,19 @@ if [ -n "$_win_user" ]; then
         echo -e "${GREEN}✓${NC} Installed to %USERPROFILE%\\.pulselauncher\\pulselauncher.ps1"
         echo "  PowerShell hint: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned"
         echo "  PATH hint:       [Environment]::SetEnvironmentVariable('PATH', \$env:PATH + ';\$env:USERPROFILE\\.pulselauncher', 'User')"
+    }
+
+    # Stdin is a terminal — prompt interactively
+    if [ -t 0 ]; then
+        echo -ne "\n  Install Windows PowerShell launcher to %USERPROFILE%\\.pulselauncher? [y/N]: "
+        read -r _ps_choice
+        if [ "$_ps_choice" = "y" ] || [ "$_ps_choice" = "Y" ]; then
+            _install_ps1
+        fi
+    # Stdin is a pipe (e.g. curl | bash) — auto-install the PS1 launcher
+    else
+        echo ""
+        _install_ps1
     fi
 fi
 
