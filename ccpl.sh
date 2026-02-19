@@ -1,0 +1,449 @@
+#!/bin/bash
+# CCPL - Claude Code Project Loader v2.0
+# Bleeding edge update checker, environment health, & package updater
+
+BOLD='\033[1m'
+DIM='\033[2m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+RED='\033[31m'
+NC='\033[0m'
+
+CLAUDE_NEEDS_UPDATE=false
+
+# Detect Windows username for cross-filesystem checks
+_ccpl_win_user=$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+if [ -z "$_ccpl_win_user" ]; then
+    _ccpl_win_user=$(wslvar USERNAME 2>/dev/null)
+fi
+
+# Compare two dotted version strings: returns 0 if equal, 1 if a>b, 2 if a<b
+version_compare() {
+    if [ "$1" = "$2" ]; then return 0; fi
+    local IFS=.
+    local i a=($1) b=($2)
+    for ((i=0; i<${#a[@]} || i<${#b[@]}; i++)); do
+        local va=${a[i]:-0} vb=${b[i]:-0}
+        if ((va > vb)); then return 1; fi
+        if ((va < vb)); then return 2; fi
+    done
+    return 0
+}
+
+fetch_latest_prerelease() {
+    local repo="$1"
+    curl -sf "https://api.github.com/repos/${repo}/releases" | \
+        python3 -c "
+import sys, json
+try:
+    for r in json.load(sys.stdin):
+        if r.get('prerelease'):
+            print(r['tag_name'].lstrip('v'))
+            break
+except: pass" 2>/dev/null
+}
+
+
+print_status() {
+    local current="$1" latest="$2"
+    if [ -n "$current" ] && [ -n "$latest" ]; then
+        version_compare "$current" "$latest"
+        local result=$?
+        case $result in
+            0) echo -e "    ${GREEN}Up to date${NC}" ;;
+            1) echo -e "    ${CYAN}Ahead of release${NC}" ;;
+            2) echo -e "    ${RED}Update available${NC}" ;;
+        esac
+        return $result
+    fi
+}
+
+# Helper: print a passing check
+pass_check() {
+    echo -e "  ${GREEN}✓${NC} $1"
+}
+
+# Helper: print a warning check
+warn_check() {
+    echo -e "  ${YELLOW}⚠${NC} $1"
+}
+
+# Helper: print a failing check
+fail_check() {
+    echo -e "  ${RED}✗${NC} $1"
+}
+
+# ╔══════════════════════════════════════════╗
+# ║              ASCII Header                ║
+# ╚══════════════════════════════════════════╝
+
+echo ""
+echo -e "${CYAN}${BOLD}   ██████╗ ██████╗██████╗ ██╗     ${NC}"
+echo -e "${CYAN}${BOLD}  ██╔════╝██╔════╝██╔══██╗██║     ${NC}"
+echo -e "${CYAN}${BOLD}  ██║     ██║     ██████╔╝██║     ${NC}"
+echo -e "${CYAN}${BOLD}  ██║     ██║     ██╔═══╝ ██║     ${NC}"
+echo -e "${CYAN}${BOLD}  ╚██████╗╚██████╗██║     ███████╗${NC}"
+echo -e "${CYAN}${BOLD}   ╚═════╝ ╚═════╝╚═╝     ╚══════╝${NC}"
+echo -e "${DIM}  Claude Code Project Loader v2.0${NC}"
+echo ""
+
+# ╔══════════════════════════════════════════╗
+# ║        Section 1: Version Checks         ║
+# ╚══════════════════════════════════════════╝
+
+echo -e "${CYAN}${BOLD}  ── Version Checks ──────────────${NC}"
+echo ""
+
+# --- WSL Preview ---
+wsl_current=$(/mnt/c/Windows/System32/wsl.exe --version 2>/dev/null | head -1 | tr -d '\r\0' | awk '{print $NF}' | sed 's/\(.*\)\.0$/\1/')
+wsl_latest=$(fetch_latest_prerelease "microsoft/WSL")
+
+echo -e "  ${BOLD}WSL Preview${NC}"
+if [ -n "$wsl_current" ]; then
+    echo -e "    Installed : ${GREEN}${wsl_current}${NC}"
+fi
+if [ -n "$wsl_latest" ]; then
+    echo -e "    Latest    : ${YELLOW}${wsl_latest}${NC}"
+    print_status "$wsl_current" "$wsl_latest"
+else
+    echo -e "    ${DIM}Could not fetch latest${NC}"
+fi
+
+echo ""
+
+# --- Windows Terminal Canary ---
+term_current=$(PATH="/mnt/c/Windows/System32/WindowsPowerShell/v1.0:$PATH" \
+    powershell.exe -NoProfile -Command \
+    '(Get-AppxPackage Microsoft.WindowsTerminalCanary -ErrorAction SilentlyContinue).Version' \
+    2>/dev/null | head -1 | tr -d '\r\0')
+term_latest=$(curl -sfL "https://aka.ms/terminal-canary-installer" | \
+    python3 -c "
+import sys, re
+m = re.search(r'MainBundle[^>]*Version=\"([^\"]+)\"', sys.stdin.read())
+if m:
+    parts = m.group(1).split('.')
+    parts[0] = '1'
+    print('.'.join(parts))" 2>/dev/null)
+
+echo -e "  ${BOLD}Windows Terminal Canary${NC}"
+if [ -n "$term_current" ]; then
+    echo -e "    Installed : ${GREEN}${term_current}${NC}"
+fi
+if [ -n "$term_latest" ]; then
+    echo -e "    Latest    : ${YELLOW}${term_latest}${NC}"
+    print_status "$term_current" "$term_latest"
+else
+    echo -e "    ${DIM}Could not fetch latest${NC}"
+fi
+
+echo ""
+
+# --- Claude Code ---
+claude_current=$(claude --version 2>/dev/null | awk '{print $1}')
+claude_latest=$(curl -sf "https://registry.npmjs.org/@anthropic-ai/claude-code/latest" | \
+    python3 -c "import sys,json; print(json.load(sys.stdin)['version'])" 2>/dev/null)
+
+echo -e "  ${BOLD}Claude Code${NC}"
+if [ -n "$claude_current" ]; then
+    echo -e "    Installed : ${GREEN}${claude_current}${NC}"
+fi
+if [ -n "$claude_latest" ]; then
+    echo -e "    Latest    : ${YELLOW}${claude_latest}${NC}"
+    print_status "$claude_current" "$claude_latest"
+    version_compare "$claude_current" "$claude_latest"
+    if [ $? -eq 2 ]; then
+        CLAUDE_NEEDS_UPDATE=true
+    fi
+else
+    echo -e "    ${DIM}Could not fetch latest${NC}"
+fi
+
+echo ""
+
+# --- Node.js ---
+node_current=$(node --version 2>/dev/null | sed 's/^v//')
+node_latest=$(curl -sf "https://nodejs.org/dist/index.json" | \
+    python3 -c "
+import sys, json
+try:
+    for r in json.load(sys.stdin):
+        if r.get('lts'):
+            print(r['version'].lstrip('v'))
+            break
+except: pass" 2>/dev/null)
+
+echo -e "  ${BOLD}Node.js (LTS)${NC}"
+if [ -n "$node_current" ]; then
+    echo -e "    Installed : ${GREEN}${node_current}${NC}"
+fi
+if [ -n "$node_latest" ]; then
+    echo -e "    Latest    : ${YELLOW}${node_latest}${NC}"
+    print_status "$node_current" "$node_latest"
+else
+    echo -e "    ${DIM}Could not fetch latest${NC}"
+fi
+
+echo ""
+
+# --- npm ---
+npm_current=$(npm --version 2>/dev/null)
+npm_latest=$(curl -sf "https://registry.npmjs.org/npm/latest" | \
+    python3 -c "import sys,json; print(json.load(sys.stdin)['version'])" 2>/dev/null)
+
+echo -e "  ${BOLD}npm${NC}"
+if [ -n "$npm_current" ]; then
+    echo -e "    Installed : ${GREEN}${npm_current}${NC}"
+fi
+if [ -n "$npm_latest" ]; then
+    echo -e "    Latest    : ${YELLOW}${npm_latest}${NC}"
+    print_status "$npm_current" "$npm_latest"
+else
+    echo -e "    ${DIM}Could not fetch latest${NC}"
+fi
+
+echo ""
+
+# --- Git ---
+git_current=$(git --version 2>/dev/null | awk '{print $3}')
+git_latest=$(curl -sf "https://api.github.com/repos/git/git/tags?per_page=50" | \
+    python3 -c "
+import sys, json, re
+try:
+    for t in json.load(sys.stdin):
+        name = t['name'].lstrip('v')
+        if re.fullmatch(r'\d+\.\d+\.\d+', name):
+            print(name)
+            break
+except: pass" 2>/dev/null)
+
+echo -e "  ${BOLD}Git${NC}"
+if [ -n "$git_current" ]; then
+    echo -e "    Installed : ${GREEN}${git_current}${NC}"
+fi
+if [ -n "$git_latest" ]; then
+    echo -e "    Latest    : ${YELLOW}${git_latest}${NC}"
+    print_status "$git_current" "$git_latest"
+else
+    echo -e "    ${DIM}Could not fetch latest${NC}"
+fi
+
+echo ""
+
+# --- Python ---
+python_current=$(python3 --version 2>/dev/null | awk '{print $2}')
+python_latest=$(curl -sf "https://api.github.com/repos/python/cpython/tags?per_page=50" | \
+    python3 -c "
+import sys, json, re
+try:
+    for t in json.load(sys.stdin):
+        name = t['name'].lstrip('v')
+        if re.fullmatch(r'\d+\.\d+\.\d+', name):
+            print(name)
+            break
+except: pass" 2>/dev/null)
+
+echo -e "  ${BOLD}Python${NC}"
+if [ -n "$python_current" ]; then
+    echo -e "    Installed : ${GREEN}${python_current}${NC}"
+fi
+if [ -n "$python_latest" ]; then
+    echo -e "    Latest    : ${YELLOW}${python_latest}${NC}"
+    print_status "$python_current" "$python_latest"
+else
+    echo -e "    ${DIM}Could not fetch latest${NC}"
+fi
+
+echo ""
+
+# ╔══════════════════════════════════════════╗
+# ║      Section 2: Environment Health       ║
+# ╚══════════════════════════════════════════╝
+
+echo -e "${CYAN}${BOLD}  ── Environment Health ──────────${NC}"
+echo ""
+
+# --- Disk Space ---
+disk_pct_used=$(df /home 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
+if [ -n "$disk_pct_used" ]; then
+    disk_free=$((100 - disk_pct_used))
+    if [ "$disk_free" -lt 10 ]; then
+        warn_check "Disk space: ${RED}${disk_free}% free${NC} on /home — consider cleaning up"
+    else
+        pass_check "Disk space: ${disk_free}% free on /home"
+    fi
+else
+    warn_check "Disk space: could not check"
+fi
+
+# --- WSL Memory (.wslconfig) ---
+if [ -n "$_ccpl_win_user" ] && [ -f "/mnt/c/Users/${_ccpl_win_user}/.wslconfig" ]; then
+    pass_check ".wslconfig exists"
+else
+    warn_check ".wslconfig missing — WSL defaults to 50% RAM, no swap cap"
+fi
+
+# --- Systemd ---
+init_proc=$(ps -p 1 -o comm= 2>/dev/null)
+if [ "$init_proc" = "systemd" ]; then
+    pass_check "Systemd is running as init"
+else
+    warn_check "Systemd not running (init: ${init_proc:-unknown}) — some services may not work"
+fi
+
+# --- APT Upgradeable ---
+apt_count=$(apt list --upgradeable 2>/dev/null | grep -c 'upgradeable')
+if [ "$apt_count" -gt 0 ] 2>/dev/null; then
+    warn_check "${apt_count} APT package(s) upgradeable — run ${DIM}sudo apt upgrade${NC}"
+else
+    pass_check "APT packages up to date"
+fi
+
+echo ""
+
+# ╔══════════════════════════════════════════╗
+# ║   Section 3: Security & Best Practices   ║
+# ╚══════════════════════════════════════════╝
+
+echo -e "${CYAN}${BOLD}  ── Security & Best Practices ──${NC}"
+echo ""
+
+# --- Not Root ---
+if [ "$EUID" -eq 0 ]; then
+    fail_check "Running as root — use a regular user"
+else
+    pass_check "Running as regular user"
+fi
+
+# --- appendWindowsPath ---
+if grep -qE '^\s*appendWindowsPath\s*=\s*false' /etc/wsl.conf 2>/dev/null; then
+    pass_check "appendWindowsPath disabled in wsl.conf"
+else
+    warn_check "appendWindowsPath not disabled — Windows PATH leaks into WSL"
+fi
+
+# --- SSH Keys ---
+if ls ~/.ssh/id_* &>/dev/null; then
+    pass_check "SSH keys found"
+else
+    warn_check "No SSH keys found — run ${DIM}ssh-keygen${NC}"
+fi
+
+# --- GitHub CLI ---
+if command -v gh &>/dev/null; then
+    pass_check "GitHub CLI installed"
+
+    # --- gh auth ---
+    if gh auth status &>/dev/null; then
+        pass_check "GitHub CLI authenticated"
+    else
+        warn_check "GitHub CLI not authenticated — run ${DIM}gh auth login${NC}"
+    fi
+else
+    warn_check "GitHub CLI not installed — see ${DIM}https://cli.github.com${NC}"
+fi
+
+echo ""
+
+# ╔══════════════════════════════════════════╗
+# ║    Section 4: Claude Code Readiness      ║
+# ╚══════════════════════════════════════════╝
+
+echo -e "${CYAN}${BOLD}  ── Claude Code Readiness ──────${NC}"
+echo ""
+
+# --- Auth ---
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+    pass_check "ANTHROPIC_API_KEY is set"
+elif [ -s "$HOME/.claude/.credentials.json" ]; then
+    pass_check "Claude credentials found"
+else
+    warn_check "No Claude auth — run ${DIM}claude${NC} to log in or set ANTHROPIC_API_KEY"
+fi
+
+# --- Settings ---
+if [ -f "$HOME/.claude/settings.json" ]; then
+    pass_check "Claude settings.json exists"
+else
+    warn_check "No Claude settings.json — run ${DIM}claude${NC} to initialize"
+fi
+
+# --- MCP Servers ---
+if [ -f "$HOME/.claude/settings.json" ]; then
+    mcp_count=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    servers = d.get('mcpServers', {})
+    print(len(servers))
+except: print(0)
+" "$HOME/.claude/settings.json" 2>/dev/null)
+    if [ "${mcp_count:-0}" -gt 0 ]; then
+        pass_check "MCP servers configured: ${mcp_count}"
+    else
+        warn_check "No MCP servers configured"
+    fi
+fi
+
+# --- CLAUDE.md ---
+if [ -f "$HOME/CLAUDE.md" ]; then
+    pass_check "~/CLAUDE.md found"
+else
+    warn_check "No ~/CLAUDE.md — consider creating one for project context"
+fi
+
+echo ""
+
+# ╔══════════════════════════════════════════╗
+# ║        Section 5: Performance            ║
+# ╚══════════════════════════════════════════╝
+
+echo -e "${CYAN}${BOLD}  ── Performance ────────────────${NC}"
+echo ""
+
+# --- Working Directory ---
+if [[ "$HOME" == /mnt/c* ]]; then
+    fail_check "HOME is on Windows filesystem (${HOME}) — severe I/O penalty"
+else
+    pass_check "HOME is on Linux filesystem"
+fi
+
+# --- API Connectivity ---
+if curl -sf --max-time 3 https://api.anthropic.com >/dev/null 2>&1; then
+    pass_check "Anthropic API reachable"
+else
+    warn_check "Anthropic API unreachable — check network/proxy"
+fi
+
+echo ""
+
+# ╔══════════════════════════════════════════╗
+# ║       Section 6: Package Updates         ║
+# ╚══════════════════════════════════════════╝
+
+echo -e "${CYAN}${BOLD}  ── Package Updates ────────────${NC}"
+echo ""
+
+echo -ne "  npm update -g  ... "
+npm_out=$(sudo npm update -g 2>&1)
+if echo "$npm_out" | grep -q "changed"; then
+    echo -e "${GREEN}updated${NC}"
+else
+    echo -e "${GREEN}ok${NC}"
+fi
+
+if [ "$CLAUDE_NEEDS_UPDATE" = true ]; then
+    echo -ne "  claude update  ... "
+    local_out=$(yes 2>/dev/null | timeout 10 claude update 2>&1) || true
+    if echo "$local_out" | grep -qi "up to date"; then
+        echo -e "${GREEN}up to date${NC}"
+    elif echo "$local_out" | grep -qi "updated\|installed\|success"; then
+        echo -e "${GREEN}updated${NC}"
+    else
+        echo -e "${YELLOW}skipped${NC}"
+    fi
+else
+    echo -e "  claude update  ... ${GREEN}up to date${NC}"
+fi
+
+echo ""
