@@ -1,6 +1,8 @@
 #!/bin/bash
-# CCPL - Claude Code Project Loader v2.0
+# CCPL - Claude Code Project Loader
 # Bleeding edge update checker, environment health, & package updater
+
+CCPL_VERSION="2.1.0"
 
 BOLD='\033[1m'
 DIM='\033[2m'
@@ -140,7 +142,7 @@ echo -e "${CYAN}${BOLD}  ██║     ██║     ██████╔╝█
 echo -e "${CYAN}${BOLD}  ██║     ██║     ██╔═══╝ ██║     ${NC}"
 echo -e "${CYAN}${BOLD}  ╚██████╗╚██████╗██║     ███████╗${NC}"
 echo -e "${CYAN}${BOLD}   ╚═════╝ ╚═════╝╚═╝     ╚══════╝${NC}"
-echo -e "${DIM}  Claude Code Project Loader v2.0${NC}"
+echo -e "${DIM}  Claude Code Project Loader v${CCPL_VERSION}${NC}"
 echo ""
 
 # ╔══════════════════════════════════════════╗
@@ -149,6 +151,36 @@ echo ""
 
 echo -e "${CYAN}${BOLD}  ── Version Checks ──────────────${NC}"
 echo ""
+
+# --- CCPL ---
+ccpl_current="$CCPL_VERSION"
+ccpl_latest=$(curl -sf "https://raw.githubusercontent.com/freshdex/ccpl/main/ccpl.sh" | \
+    grep -m1 '^CCPL_VERSION=' | sed 's/CCPL_VERSION="//' | sed 's/"//')
+
+print_version_line "CCPL" "$ccpl_current" "$ccpl_latest"
+if [ $? -eq 2 ]; then
+    UPDATE_LABELS+=("CCPL ${ccpl_current} → ${ccpl_latest}")
+    UPDATE_CMDS+=("curl -fsSL https://raw.githubusercontent.com/freshdex/ccpl/main/install.sh | bash")
+fi
+
+# --- Ubuntu LTS ---
+ubuntu_current=$(. /etc/os-release 2>/dev/null && echo "$VERSION_ID")
+ubuntu_latest=$(curl -sf "https://api.launchpad.net/devel/ubuntu/series" | \
+    python3 -c "
+import sys, json, re
+try:
+    for s in json.load(sys.stdin)['entries']:
+        v = s.get('version', '')
+        if re.fullmatch(r'\d+\.04', v) and s.get('status') in ('Current Stable Release', 'Supported'):
+            print(v)
+            break
+except: pass" 2>/dev/null)
+
+print_version_line "Ubuntu LTS" "$ubuntu_current" "$ubuntu_latest"
+if [ $? -eq 2 ]; then
+    UPDATE_LABELS+=("Ubuntu ${ubuntu_current} → ${ubuntu_latest}")
+    UPDATE_CMDS+=("sudo do-release-upgrade -d")
+fi
 
 # --- WSL Preview ---
 wsl_current=$(/mnt/c/Windows/System32/wsl.exe --version 2>/dev/null | head -1 | tr -d '\r\0' | awk '{print $NF}' | sed 's/\(.*\)\.0$/\1/')
